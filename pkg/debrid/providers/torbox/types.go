@@ -121,7 +121,7 @@ type ProfileResponse struct {
 	TotalDownloaded           int64  `json:"total_downloaded"`
 	Customer                  string `json:"customer"`
 	IsSubscribed              bool   `json:"is_subscribed"`
-	PremiumExpiresAt          int64  `json:"premium_expires_at"`
+	PremiumExpiresAt          string `json:"premium_expires_at"`
 	CooldownUntil             string `json:"cooldown_until"`
 	Email                     string `json:"email"`
 	UserReferral              string `json:"user_referral"`

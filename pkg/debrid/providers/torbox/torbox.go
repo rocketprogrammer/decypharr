@@ -697,20 +697,38 @@ func (tb *Torbox) GetProfile() (*types.Profile, error) {
 		return tb.Profile, nil
 	}
 
+	var err error
+
 	url := fmt.Sprintf("%s/api/user/me?settings=true", tb.Host)
-	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("new request: %w", err)
+	}
 
 	resp, err := tb.client.MakeRequest(req)
 	if err != nil {
 		return nil, err
 	}
 
-	var userData ProfileResponse
-	if json.Unmarshal(resp, &userData) != nil {
-		return nil, err
+	var apiResp APIResponse[ProfileResponse]
+	err = json.Unmarshal(resp, &apiResp)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal API response: %w", err)
+	}
+	if !apiResp.Success {
+		return nil, fmt.Errorf("API failed: %s (error: %v)", apiResp.Detail, apiResp.Error)
+	}
+	if apiResp.Data == nil {
+		return nil, fmt.Errorf("no profile data in response")
 	}
 
-	expiration := time.Unix(userData.PremiumExpiresAt, 0)
+	userData := *apiResp.Data
+
+	expiration, err := time.Parse(time.RFC3339, userData.PremiumExpiresAt)
+	if err != nil {
+		return nil, fmt.Errorf("parse premium expiry: %w", err)
+	}
+
 	profile := &types.Profile{
 		Name:       tb.name,
 		Id:         userData.Id,
