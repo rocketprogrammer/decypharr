@@ -40,6 +40,7 @@ type Torbox struct {
 	logger      zerolog.Logger
 	checkCached bool
 	addSamples  bool
+	Profile     *types.Profile
 }
 
 func New(dc config.Debrid, ratelimits map[string]ratelimit.Limiter) (*Torbox, error) {
@@ -658,12 +659,80 @@ func (tb *Torbox) GetMountPath() string {
 }
 
 func (tb *Torbox) GetAvailableSlots() (int, error) {
-	//TODO: Implement the logic to check available slots for Torbox
-	return 0, fmt.Errorf("not implemented")
+	var planSlots map[string]int = map[string]int{
+		"essential": 3,
+		"standard":  5,
+		"pro":       10,
+	}
+
+	var accountSlots int = 1
+	profile, err := tb.GetProfile()
+	if err != nil {
+		return 0, err
+	}
+
+	if slots, ok := planSlots[profile.Type]; ok {
+		accountSlots = slots
+	}
+
+	activeTorrents, err := tb.GetTorrents()
+	if err != nil {
+		return 0, err
+	}
+
+	activeCount := 0
+	for _, t := range activeTorrents {
+		if utils.Contains(tb.GetDownloadingStatus(), t.Status) {
+			activeCount++
+		}
+	}
+
+	available := max(accountSlots-activeCount, 0)
+
+	return available, nil
 }
 
 func (tb *Torbox) GetProfile() (*types.Profile, error) {
-	return nil, nil
+	if tb.Profile != nil {
+		return tb.Profile, nil
+	}
+
+	url := fmt.Sprintf("%s/api/user/me?settings=true", tb.Host)
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+
+	resp, err := tb.client.MakeRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var userData ProfileResponse
+	if json.Unmarshal(resp, &userData) != nil {
+		return nil, err
+	}
+
+	expiration := time.Unix(userData.PremiumExpiresAt, 0)
+	profile := &types.Profile{
+		Name:       tb.name,
+		Id:         userData.Id,
+		Username:   userData.Email,
+		Email:      userData.Email,
+		Expiration: expiration,
+	}
+
+	switch userData.Plan {
+	case 1:
+		profile.Type = "essential"
+	case 2:
+		profile.Type = "pro"
+	case 3:
+		profile.Type = "standard"
+	default:
+		profile.Type = "free"
+	}
+
+	tb.Profile = profile
+
+	return profile, nil
 }
 
 func (tb *Torbox) AccountManager() *account.Manager {
