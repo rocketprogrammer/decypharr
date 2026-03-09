@@ -537,7 +537,14 @@ func (tb *Torbox) GetDownloadLink(t *types.Torrent, file *types.File) (types.Dow
 }
 
 func (tb *Torbox) GetDownloadingStatus() []string {
-	return []string{"downloading"}
+	// TorBox uses many download states beyond just "downloading"
+	// Including: metaDL (metadata download), queuedDL, checkingDL, etc.
+	return []string{
+		"completed", "cached", "paused", "downloading", "uploading",
+		"checkingResumeData", "metaDL", "pausedUP", "queuedUP", "checkingUP",
+		"forcedUP", "allocating", "pausedDL", "queuedDL", "checkingDL",
+		"forcedDL", "moving", "error",
+	}
 }
 
 func (tb *Torbox) GetTorrents() ([]*types.Torrent, error) {
