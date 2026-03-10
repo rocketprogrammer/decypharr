@@ -139,7 +139,19 @@ func (tb *Torbox) SubmitMagnet(torrent *types.Torrent) (*types.Torrent, error) {
 	url := fmt.Sprintf("%s/api/torrents/createtorrent", tb.Host)
 	payload := &bytes.Buffer{}
 	writer := multipart.NewWriter(payload)
-	_ = writer.WriteField("magnet", torrent.Magnet.Link)
+	if torrent.Magnet.IsTorrent() {
+		// Upload the actual .torrent file for better compatibility
+		// (includes trackers, piece hashes, and other metadata)
+		part, err := writer.CreateFormFile("file", "torrent.torrent")
+		if err != nil {
+			return nil, fmt.Errorf("error creating form file: %w", err)
+		}
+		if _, err := part.Write(torrent.Magnet.File); err != nil {
+			return nil, fmt.Errorf("error writing torrent file: %w", err)
+		}
+	} else {
+		_ = writer.WriteField("magnet", torrent.Magnet.Link)
+	}
 	if !torrent.DownloadUncached {
 		_ = writer.WriteField("add_only_if_cached", "true")
 	}
